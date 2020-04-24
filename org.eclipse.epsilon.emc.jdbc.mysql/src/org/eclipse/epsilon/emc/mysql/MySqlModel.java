@@ -2,8 +2,11 @@ package org.eclipse.epsilon.emc.mysql;
 
 import java.sql.SQLException;
 
+import org.eclipse.epsilon.common.util.StringProperties;
 import org.eclipse.epsilon.emc.jdbc.JdbcModel;
 import org.eclipse.epsilon.eol.EolModule;
+import org.eclipse.epsilon.eol.compile.m3.Metamodel;
+import org.eclipse.epsilon.eol.models.IRelativePathResolver;
 
 import com.mysql.jdbc.Driver;
 
