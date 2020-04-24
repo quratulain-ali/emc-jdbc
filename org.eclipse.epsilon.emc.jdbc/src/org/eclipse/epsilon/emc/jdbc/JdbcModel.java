@@ -23,6 +23,10 @@ import java.util.List;
 import java.util.Map;
 //import org.eclipse.epsilon.common.parse.AST;
 import org.eclipse.epsilon.common.util.StringProperties;
+import org.eclipse.epsilon.common.util.StringUtil;
+import org.eclipse.epsilon.eol.compile.m3.MetaClass;
+import org.eclipse.epsilon.eol.compile.m3.Attribute;
+import org.eclipse.epsilon.eol.compile.m3.Metamodel;
 import org.eclipse.epsilon.eol.dom.CollectionLiteralExpression;
 import org.eclipse.epsilon.eol.dom.Expression;
 import org.eclipse.epsilon.eol.dom.FeatureCallExpression;
@@ -46,6 +50,8 @@ import org.eclipse.epsilon.eol.execute.operations.contributors.OperationContribu
 import org.eclipse.epsilon.eol.models.IRelativePathResolver;
 import org.eclipse.epsilon.eol.models.Model;
 import org.eclipse.epsilon.eol.types.EolMap;
+import org.eclipse.epsilon.eol.types.EolModelElementType;
+import org.eclipse.epsilon.eol.types.EolPrimitiveType;
 
 /**
  * An Epsilon EMC model that uses the JDBC api to provide access to a DB as a model. 
@@ -90,9 +96,12 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 		while (rs.next()) {
 			for (int i = 1; i < rs.getMetaData().getColumnCount(); i++) {
 				System.err.print(rs.getMetaData().getColumnName(i) + "=" + rs.getString(i) + " - ");
+			
 			}
+			System.err.println(rs.getString(1));
 			System.err.println();
 		}
+
 		System.err.println("---");
 	}
 
@@ -170,7 +179,7 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 			System.out.println(sql);
 			System.out.println(parameters);
 			PreparedStatement preparedStatement = this.prepareStatement(sql, options, resultSetType, streamed);
-
+			
 			if (streamed) {
 				preparedStatement.setFetchSize(Integer.MIN_VALUE);
 			} else {
@@ -180,11 +189,13 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 			if (parameters != null) {
 				this.setParameters(preparedStatement, parameters);
 			}
-
+			System.out.println(preparedStatement.toString());
 			ResultSet resultSet = preparedStatement.executeQuery();
 			if (streamed) {
 				connectionPool.register(resultSet, preparedStatement.getConnection());
+				
 			}
+			print(resultSet);
 			return resultSet;
 		} catch (Exception ex) {
 			throw new RuntimeException(ex);
@@ -565,9 +576,21 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 	public Collection<?> getAllOfKind(String type) throws EolModelElementTypeNotFoundException {
 		return getAllOfType(type);
 	}
+	
+	@Override
+	public boolean knowsAboutProperty(Object instance, String property) {
+		
+		if(((EolModelElementType)instance).getMetaClass().getStructuralFeature(property)!=null)
+			return true;
+		else
+			return false;
+	}
 
 	@Override
 	public boolean owns(Object instance) {
+		
+		System.out.println(((Result) instance)
+				.getOwningModel());
 		return (instance instanceof Result && ((Result) instance)
 				.getOwningModel() == this)/*
 											 * || ((instance instanceof
@@ -695,5 +718,41 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 	public ConnectionPool getConnectionPool() {
 		return connectionPool;
 	}
+	
+	public Metamodel getMetamodel(StringProperties properties, IRelativePathResolver resolver) {
+		Metamodel mySqlModelMetamodel= new Metamodel();
+		try {
+			this.load(properties, resolver);
+			int options = ResultSet.TYPE_SCROLL_INSENSITIVE;
+			int resultSetType = this.getResultSetType();
+			ResultSet rs= prepareStatement("show tables", options, resultSetType, true).executeQuery();
+				
+			while (rs.next()) {
+					MetaClass metaClass = new MetaClass();
+					String tableName= rs.getString(1);
+					System.out.println("Table Name : "+tableName);
+					metaClass.setName(tableName);
+					mySqlModelMetamodel.setMetaClass(metaClass);
+					
+					ResultSet field= prepareStatement("describe "+tableName, options, resultSetType, true).executeQuery();
+				while( field.next()) {	
+					Attribute attribute = new Attribute();
+					attribute.setName(field.getString(1));
+					System.out.println("Attribute Name : "+field.getString(1));
+					//FIXME
+//					String type = asPrimitive(field.getString(2));
+//					attribute.setType(EolPrimitiveType.Real);
+					
+					metaClass.getStructuralFeatures().add(attribute);
+				}
+			}
+		} 
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+		return mySqlModelMetamodel;
+		
+	}
+
 
 }
