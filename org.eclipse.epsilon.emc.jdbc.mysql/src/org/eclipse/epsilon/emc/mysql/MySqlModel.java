@@ -42,5 +42,10 @@ public class MySqlModel extends JdbcModel {
 	protected String getJdbcUrl() {
 		return "jdbc:mysql://" + server + ":" + port + "/" + databaseName;
 	}
+	
+	@Override
+	public Metamodel getMetamodel(StringProperties properties, IRelativePathResolver resolver) {
+		return super.getMetamodel(properties, resolver);
+	}
 
 }
