@@ -2,6 +2,7 @@ package org.eclipse.epsilon.emc.mysql;
 
 import java.sql.SQLException;
 
+import org.eclipse.epsilon.common.module.ModuleElement;
 import org.eclipse.epsilon.common.parse.AST;
 import org.eclipse.epsilon.common.util.StringProperties;
 import org.eclipse.epsilon.emc.jdbc.JdbcModel;
