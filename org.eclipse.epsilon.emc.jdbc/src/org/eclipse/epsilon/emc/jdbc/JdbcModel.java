@@ -21,6 +21,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import org.eclipse.epsilon.common.module.ModuleElement;
+import org.eclipse.epsilon.common.parse.AST;
 //import org.eclipse.epsilon.common.parse.AST;
 import org.eclipse.epsilon.common.util.StringProperties;
 import org.eclipse.epsilon.common.util.StringUtil;
@@ -30,6 +33,7 @@ import org.eclipse.epsilon.eol.compile.m3.Metamodel;
 import org.eclipse.epsilon.eol.dom.CollectionLiteralExpression;
 import org.eclipse.epsilon.eol.dom.Expression;
 import org.eclipse.epsilon.eol.dom.FeatureCallExpression;
+import org.eclipse.epsilon.eol.dom.FirstOrderOperationCallExpression;
 import org.eclipse.epsilon.eol.dom.NameExpression;
 import org.eclipse.epsilon.eol.dom.NotOperatorExpression;
 import org.eclipse.epsilon.eol.dom.OperationCallExpression;
@@ -49,9 +53,11 @@ import org.eclipse.epsilon.eol.execute.operations.contributors.IOperationContrib
 import org.eclipse.epsilon.eol.execute.operations.contributors.OperationContributor;
 import org.eclipse.epsilon.eol.models.IRelativePathResolver;
 import org.eclipse.epsilon.eol.models.Model;
+import org.eclipse.epsilon.eol.types.EolAnyType;
 import org.eclipse.epsilon.eol.types.EolMap;
 import org.eclipse.epsilon.eol.types.EolModelElementType;
 import org.eclipse.epsilon.eol.types.EolPrimitiveType;
+import org.eclipse.epsilon.eol.types.EolType;
 
 /**
  * An Epsilon EMC model that uses the JDBC api to provide access to a DB as a model. 
@@ -67,6 +73,9 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 	public static final String PROPERTY_PASSWORD = "password";
 	public static final String PROPERTY_READONLY = "readonly";
 	public static final String PROPERTY_STREAMRESULTS = "streamresults";
+	String tablename;
+	String features;
+	String condition;
 
 	protected String server;
 	protected int port;
@@ -579,18 +588,20 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 	
 	@Override
 	public boolean knowsAboutProperty(Object instance, String property) {
-		
-		if(((EolModelElementType)instance).getMetaClass().getStructuralFeature(property)!=null)
-			return true;
-		else
+		if(!(owns(instance)))
 			return false;
+		else {
+			return true;
+		}
 	}
 
 	@Override
 	public boolean owns(Object instance) {
-		
-		System.out.println(((Result) instance)
-				.getOwningModel());
+//		try {
+//			if(((EolModelElementType)instance).getModel() == this)
+//				return true;
+//			else
+//				return false;
 		return (instance instanceof Result && ((Result) instance)
 				.getOwningModel() == this)/*
 											 * || ((instance instanceof
@@ -598,6 +609,12 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 											 * ((ResultSetList)
 											 * instance).getModel() == this)
 											 */;
+			//return false;
+//		} catch (EolModelElementTypeNotFoundException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		}
+//		return false;
 	}
 
 	/*
@@ -739,9 +756,10 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 					Attribute attribute = new Attribute();
 					attribute.setName(field.getString(1));
 					System.out.println("Attribute Name : "+field.getString(1));
-					//FIXME
-//					String type = asPrimitive(field.getString(2));
-//					attribute.setType(EolPrimitiveType.Real);
+					System.out.println("Attribute Type : "+field.getString(2));
+				
+					EolType type = sqlToEolType(field.getString(2));
+					attribute.setType(type);
 					
 					metaClass.getStructuralFeatures().add(attribute);
 				}
@@ -753,6 +771,109 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 		return mySqlModelMetamodel;
 		
 	}
+	
+	private EolType sqlToEolType(String sqlType) {
+		if(sqlType.contains("(")) {
+		String [] sqlTypes = sqlType.split("\\(");
+		sqlType = sqlTypes[0];
+		}
+		switch(sqlType) {
+		case "char":
+		case "varchar":
+		case "blob":
+		case "text":
+		case "tinyblob":
+		case "tinytext":
+		case "mediumblob":
+		case "longblob":
+		case "mediumtext":
+		case "longtext": {
+			return EolPrimitiveType.String;
+		}
+		
+		case "bit":
+		case "tinyint":
+		case "smallint":
+		case "mediumint":
+		case "int":
+		case "integer":
+		case "bigint": {
+			return EolPrimitiveType.Integer;
+		}
+		
+		case "float":
+		case "double":
+		case "decimal":
+		case "dec":{
+			return EolPrimitiveType.Real;
+		}
+		
+		case "bool":
+		case "boolean": {
+			return EolPrimitiveType.Boolean;
+		}
+		}
+		return EolAnyType.Instance;
+	}
 
+	public String rewriteQuery(ModuleElement ast) {
+		
+		if(ast instanceof OperationCallExpression 
+				&& !(((OperationCallExpression) ast).getTargetExpression() instanceof NameExpression )) {
+			for (ModuleElement astChild: ast.getChildren()) {
+				if(astChild instanceof OperationCallExpression)
+				astToSql((OperationCallExpression)astChild);
+			
+				if(astChild instanceof PropertyCallExpression)
+				astToSql((PropertyCallExpression)astChild);
+			}
+			astToSql((OperationCallExpression)ast);
+		}
+		
+		return "SELECT "+features+" FROM "+tablename;
+		
+		}
+			
+	
+
+	 
+	public void astToSql(OperationCallExpression ast) {
+		if(!(ast.getTargetExpression() instanceof NameExpression)
+				||  (ast.getChildren()!= null)) {
+			for (ModuleElement astChild: ast.getChildren()) {
+				if(astChild instanceof OperationCallExpression)
+					astToSql((OperationCallExpression)astChild);
+				
+				if(astChild instanceof PropertyCallExpression)
+					astToSql((PropertyCallExpression)astChild);
+			}
+			if(ast.getOperationName().equals("size"))
+				features = "COUNT ("+features+")";
+			if(ast.getOperationName().equals("asSet"))
+				features = "DISTINCT "+features;
+		}
+	}
+	
+	public void astToSql(PropertyCallExpression ast) {
+		if(!(ast.getTargetExpression() instanceof NameExpression) || (ast.getChildren()!= null)) {
+			for (ModuleElement astChild: ast.getChildren()) {
+				if(astChild instanceof OperationCallExpression)
+					astToSql((OperationCallExpression)astChild);
+				
+				if(astChild instanceof PropertyCallExpression)
+					astToSql((PropertyCallExpression)astChild);
+			}
+		if(ast.getPropertyNameExpression().getName().equals("all") ||
+				ast.getPropertyNameExpression().getName().equals("allInstances")) {
+			if( ast.getTargetExpression().getResolvedType() instanceof EolModelElementType)
+				tablename = ((EolModelElementType)ast.getTargetExpression().getResolvedType()).getTypeName();
+				features = "*";
+		}
+		else
+		{
+			features = ast.getPropertyNameExpression().getName();
+		}
+		}
+	}
 
 }

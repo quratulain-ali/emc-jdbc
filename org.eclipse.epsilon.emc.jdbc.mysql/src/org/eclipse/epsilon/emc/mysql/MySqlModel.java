@@ -2,6 +2,7 @@ package org.eclipse.epsilon.emc.mysql;
 
 import java.sql.SQLException;
 
+import org.eclipse.epsilon.common.parse.AST;
 import org.eclipse.epsilon.common.util.StringProperties;
 import org.eclipse.epsilon.emc.jdbc.JdbcModel;
 import org.eclipse.epsilon.eol.EolModule;
@@ -49,6 +50,11 @@ public class MySqlModel extends JdbcModel {
 	@Override
 	public Metamodel getMetamodel(StringProperties properties, IRelativePathResolver resolver) {
 		return super.getMetamodel(properties, resolver);
+	}
+	
+	@Override
+	public String rewriteQuery(ModuleElement ast) {
+		return super.rewriteQuery(ast);
 	}
 
 }
