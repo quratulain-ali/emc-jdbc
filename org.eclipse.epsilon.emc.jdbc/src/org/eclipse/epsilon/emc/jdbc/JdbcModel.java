@@ -201,7 +201,7 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 				connectionPool.register(resultSet, preparedStatement.getConnection());
 				
 			}
-			print(resultSet);
+			//print(resultSet);
 			return resultSet;
 		} catch (Exception ex) {
 			throw new RuntimeException(ex);
@@ -391,7 +391,7 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 				&& ((NameExpression) ((PropertyCallExpression) ast).getTargetExpression()).getName()
 						.equals(iterator.getName())) {
 			PropertyCallExpression pexp = (PropertyCallExpression) ast;
-			return Utils.wrap(pexp.getNameExpression().getName(), identifierQuoteString);
+			return Utils.wrap(pexp.getPropertyNameExpression().getName(), identifierQuoteString);
 		} else if (ast instanceof OperationCallExpression
 				// operation
 				&& ((OperationCallExpression) ast).getTargetExpression() instanceof FeatureCallExpression
@@ -409,7 +409,7 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 			if (operationname.equals(identifierQuoteString + "hasType" + identifierQuoteString))
 				try {
 					String datatype = getTypeMetaData(t, ((PropertyCallExpression) ocexp.getTargetExpression())
-							.getNameExpression().getName());
+							.getPropertyNameExpression().getName());
 					// System.err.println(">"+datatype);
 					String requiredtype = ((StringLiteral) ocexp.getParameterExpressions().get(0)).getValue();
 					// System.err.println(">>"+requiredtype);
@@ -446,7 +446,7 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 			String ret = "(";
 			for (String s : ((Iterable<String>) currentoperation.getTargetExpression().execute(context))) {
 				ret = ret + Utils.wrap(
-						((NameExpression) ((PropertyCallExpression) parameters.get(0)).getNameExpression())
+						((NameExpression) ((PropertyCallExpression) parameters.get(0)).getPropertyNameExpression())
 								.getName(),
 						identifierQuoteString) + "=? or ";
 				variables.add(s);
