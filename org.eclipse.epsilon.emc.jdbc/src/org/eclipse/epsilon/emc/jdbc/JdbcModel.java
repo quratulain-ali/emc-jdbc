@@ -25,6 +25,7 @@ import java.util.Map;
 import org.eclipse.epsilon.common.module.ModuleElement;
 import org.eclipse.epsilon.common.util.StringProperties;
 import org.eclipse.epsilon.eol.compile.m3.MetaClass;
+import org.eclipse.epsilon.eol.EolModule;
 import org.eclipse.epsilon.eol.compile.m3.Attribute;
 import org.eclipse.epsilon.eol.compile.m3.Metamodel;
 import org.eclipse.epsilon.eol.dom.CollectionLiteralExpression;
@@ -391,7 +392,7 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 				&& ((NameExpression) ((PropertyCallExpression) ast).getTargetExpression()).getName()
 						.equals(iterator.getName())) {
 			PropertyCallExpression pexp = (PropertyCallExpression) ast;
-			return Utils.wrap(pexp.getPropertyNameExpression().getName(), identifierQuoteString);
+			return Utils.wrap(pexp.getName(), identifierQuoteString);
 		} else if (ast instanceof OperationCallExpression
 				// operation
 				&& ((OperationCallExpression) ast).getTargetExpression() instanceof FeatureCallExpression
@@ -409,7 +410,7 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 			if (operationname.equals(identifierQuoteString + "hasType" + identifierQuoteString))
 				try {
 					String datatype = getTypeMetaData(t, ((PropertyCallExpression) ocexp.getTargetExpression())
-							.getPropertyNameExpression().getName());
+							.getName());
 					// System.err.println(">"+datatype);
 					String requiredtype = ((StringLiteral) ocexp.getParameterExpressions().get(0)).getValue();
 					// System.err.println(">>"+requiredtype);
@@ -446,7 +447,7 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 			String ret = "(";
 			for (String s : ((Iterable<String>) currentoperation.getTargetExpression().execute(context))) {
 				ret = ret + Utils.wrap(
-						((NameExpression) ((PropertyCallExpression) parameters.get(0)).getPropertyNameExpression())
+						((NameExpression) ((PropertyCallExpression) parameters.get(0)).getNameExpression())
 								.getName(),
 						identifierQuoteString) + "=? or ";
 				variables.add(s);
@@ -802,6 +803,10 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 		}
 		return EolAnyType.Instance;
 	}
+	
+	public EolModule reWrite(EolModule module) {
+		return null;
+	}
 
 	public String rewriteQuery(ModuleElement ast) {
 		
@@ -834,9 +839,9 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 				if(astChild instanceof PropertyCallExpression)
 					astToSql((PropertyCallExpression)astChild);
 			}
-			if(ast.getOperationName().equals("size"))
+			if(ast.getName().equals("size"))
 				features = "COUNT ("+features+")";
-			if(ast.getOperationName().equals("asSet"))
+			if(ast.getName().equals("asSet"))
 				features = "DISTINCT "+features;
 		}
 	}
@@ -850,15 +855,15 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 				if(astChild instanceof PropertyCallExpression)
 					astToSql((PropertyCallExpression)astChild);
 			}
-		if(ast.getPropertyNameExpression().getName().equals("all") ||
-				ast.getPropertyNameExpression().getName().equals("allInstances")) {
+		if(ast.getName().equals("all") ||
+				ast.getName().equals("allInstances")) {
 			if( ast.getTargetExpression().getResolvedType() instanceof EolModelElementType)
 				tablename = ((EolModelElementType)ast.getTargetExpression().getResolvedType()).getTypeName();
 				features = "*";
 		}
 		else
 		{
-			features = ast.getPropertyNameExpression().getName();
+			features = ast.getName();
 		}
 		}
 	}
