@@ -36,6 +36,7 @@ import org.eclipse.epsilon.eol.dom.NotOperatorExpression;
 import org.eclipse.epsilon.eol.dom.OperationCallExpression;
 import org.eclipse.epsilon.eol.dom.OperatorExpression;
 import org.eclipse.epsilon.eol.dom.PropertyCallExpression;
+import org.eclipse.epsilon.eol.dom.Statement;
 import org.eclipse.epsilon.eol.dom.StringLiteral;
 import org.eclipse.epsilon.eol.exceptions.EolRuntimeException;
 import org.eclipse.epsilon.eol.exceptions.models.EolEnumerationValueNotFoundException;
@@ -804,12 +805,26 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 		return EolAnyType.Instance;
 	}
 	
-	public EolModule reWrite(EolModule module) {
+	public EolModule rewrite(EolModule module) {
+		
+		List<Statement> statements=module.getMain().getStatements();
+		
+		for(Statement statement: statements) {
+			
+			List<ModuleElement> asts=statement.getChildren();
+			
+			for (ModuleElement ast: asts) {
+			System.out.println(rewriteQuery(ast));
+			
+			}
+		}
 		return null;
 	}
 
 	public String rewriteQuery(ModuleElement ast) {
-		
+		tablename = "";
+		features = "";
+		condition = "";
 		if(ast instanceof OperationCallExpression 
 				&& !(((OperationCallExpression) ast).getTargetExpression() instanceof NameExpression )) {
 			for (ModuleElement astChild: ast.getChildren()) {
@@ -821,6 +836,18 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 			}
 			astToSql((OperationCallExpression)ast);
 		}
+		
+//		if(ast instanceof PropertyCallExpression) {
+//			if(!(((PropertyCallExpression) ast).getTargetExpression() instanceof NameExpression )) {
+//			for (ModuleElement astChild: ast.getChildren()) {
+//				
+//				if(astChild instanceof PropertyCallExpression)
+//				astToSql((PropertyCallExpression)astChild);
+//			}
+//			astToSql((OperationCallExpression)ast);
+//			
+//			}
+//		}
 		
 		return "SELECT "+features+" FROM "+tablename;
 		
@@ -857,9 +884,18 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 			}
 		if(ast.getName().equals("all") ||
 				ast.getName().equals("allInstances")) {
-			if( ast.getTargetExpression().getResolvedType() instanceof EolModelElementType)
+			if( ast.getTargetExpression().getResolvedType() instanceof EolModelElementType) {
 				tablename = ((EolModelElementType)ast.getTargetExpression().getResolvedType()).getTypeName();
 				features = "*";
+//				try {
+//					System.out.println(((EolModelElementType)ast.getTargetExpression().getResolvedType()).getModel());
+//				} catch (EolModelElementTypeNotFoundException e) {
+//					// TODO Auto-generated catch block
+//					e.printStackTrace();
+//				}
+				
+			}
+			
 		}
 		else
 		{
