@@ -26,6 +26,8 @@ import org.eclipse.epsilon.common.module.ModuleElement;
 import org.eclipse.epsilon.common.util.StringProperties;
 import org.eclipse.epsilon.eol.compile.m3.MetaClass;
 import org.eclipse.epsilon.eol.EolModule;
+import org.eclipse.epsilon.eol.IEolModule;
+import org.eclipse.epsilon.eol.compile.context.EolCompilationContext;
 import org.eclipse.epsilon.eol.compile.m3.Attribute;
 import org.eclipse.epsilon.eol.compile.m3.Metamodel;
 import org.eclipse.epsilon.eol.dom.CollectionLiteralExpression;
@@ -71,7 +73,10 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 	public static final String PROPERTY_STREAMRESULTS = "streamresults";
 	String tablename;
 	String features;
-	String condition;
+	String conditions;
+	String parameters;
+	String limit;
+	boolean optimisable;
 
 	protected String server;
 	protected int port;
@@ -726,7 +731,9 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 	}
 	
 	public Metamodel getMetamodel(StringProperties properties, IRelativePathResolver resolver) {
+		
 		Metamodel mySqlModelMetamodel= new Metamodel();
+		
 		try {
 			this.load(properties, resolver);
 			int options = ResultSet.TYPE_SCROLL_INSENSITIVE;
@@ -734,13 +741,14 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 			ResultSet rs= prepareStatement("show tables", options, resultSetType, true).executeQuery();
 				
 			while (rs.next()) {
-					MetaClass metaClass = new MetaClass();
-					String tableName= rs.getString(1);
-					System.out.println("Table Name : "+tableName);
-					metaClass.setName(tableName);
-					mySqlModelMetamodel.setMetaClass(metaClass);
+				MetaClass metaClass = new MetaClass();
+				String tableName= rs.getString(1);
+				System.out.println("Table Name : "+tableName);
+				metaClass.setName(tableName);
+				mySqlModelMetamodel.setMetaClass(metaClass);
 					
-					ResultSet field= prepareStatement("describe "+tableName, options, resultSetType, true).executeQuery();
+				ResultSet field= prepareStatement("describe "+tableName, options, resultSetType, true).executeQuery();
+				
 				while( field.next()) {	
 					Attribute attribute = new Attribute();
 					attribute.setName(field.getString(1));
@@ -752,8 +760,8 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 					
 					metaClass.getStructuralFeatures().add(attribute);
 				}
-			}
-		} 
+			 }
+		 } 
 		catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -805,94 +813,100 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 		return EolAnyType.Instance;
 	}
 	
-	public EolModule rewrite(EolModule module) {
+	public void rewrite(IEolModule module, EolCompilationContext context) {
 		
 		List<Statement> statements=module.getMain().getStatements();
 		
 		for(Statement statement: statements) {
-			
+			optimisable = true;
 			List<ModuleElement> asts=statement.getChildren();
-			
 			for (ModuleElement ast: asts) {
-			System.out.println(rewriteQuery(ast));
-			
+				System.out.println(rewriteQuery(ast, context));
 			}
 		}
-		return null;
 	}
 
-	public String rewriteQuery(ModuleElement ast) {
+	public String rewriteQuery(ModuleElement ast, EolCompilationContext context) {
 		tablename = "";
-		features = "";
-		condition = "";
+		features = "" ;
+		conditions = "";
+		parameters = "";
+		limit = "";
+		
 		if(ast instanceof OperationCallExpression 
 				&& !(((OperationCallExpression) ast).getTargetExpression() instanceof NameExpression )) {
+			
 			for (ModuleElement astChild: ast.getChildren()) {
 				if(astChild instanceof OperationCallExpression)
-				astToSql((OperationCallExpression)astChild);
+				astToSql((OperationCallExpression)astChild, context);
 			
 				if(astChild instanceof PropertyCallExpression)
-				astToSql((PropertyCallExpression)astChild);
+				astToSql((PropertyCallExpression)astChild, context);
 			}
-			astToSql((OperationCallExpression)ast);
+			astToSql((OperationCallExpression)ast, context);
 		}
+		if(optimisable) {
+			if(tablename.isEmpty())
+				return "Not optimisable";
+			if(conditions.isEmpty() && limit.isEmpty())
+				return "SELECT "+features+" FROM "+tablename;
+			
+			else if(conditions.isEmpty())
+				return "SELECT "+features+" FROM "+tablename+" limit "+limit;
+			
+			else
+				return "SELECT "+features+" FROM "+tablename+" WHERE "+conditions+" = "+parameters;
+			
+			}
+		else
+			return "Not optimisable";
+	    }
 		
-//		if(ast instanceof PropertyCallExpression) {
-//			if(!(((PropertyCallExpression) ast).getTargetExpression() instanceof NameExpression )) {
-//			for (ModuleElement astChild: ast.getChildren()) {
-//				
-//				if(astChild instanceof PropertyCallExpression)
-//				astToSql((PropertyCallExpression)astChild);
-//			}
-//			astToSql((OperationCallExpression)ast);
-//			
-//			}
-//		}
-		
-		return "SELECT "+features+" FROM "+tablename;
-		
-		}
 			
 	
 
 	 
-	public void astToSql(OperationCallExpression ast) {
+	public void astToSql(OperationCallExpression ast, EolCompilationContext context) {
 		if(!(ast.getTargetExpression() instanceof NameExpression)
 				||  (ast.getChildren()!= null)) {
 			for (ModuleElement astChild: ast.getChildren()) {
 				if(astChild instanceof OperationCallExpression)
-					astToSql((OperationCallExpression)astChild);
+					astToSql((OperationCallExpression)astChild, context);
 				
 				if(astChild instanceof PropertyCallExpression)
-					astToSql((PropertyCallExpression)astChild);
+					astToSql((PropertyCallExpression)astChild, context);
 			}
 			if(ast.getName().equals("size"))
-				features = "COUNT ("+features+")";
+				features = "COUNT("+features+")";
 			if(ast.getName().equals("asSet"))
 				features = "DISTINCT "+features;
+			if(ast.getName().equals("first")) {
+				limit = "1";
+			}
 		}
 	}
 	
-	public void astToSql(PropertyCallExpression ast) {
+	public void astToSql(PropertyCallExpression ast, EolCompilationContext context) {
 		if(!(ast.getTargetExpression() instanceof NameExpression) || (ast.getChildren()!= null)) {
 			for (ModuleElement astChild: ast.getChildren()) {
 				if(astChild instanceof OperationCallExpression)
-					astToSql((OperationCallExpression)astChild);
+					astToSql((OperationCallExpression)astChild, context);
 				
 				if(astChild instanceof PropertyCallExpression)
-					astToSql((PropertyCallExpression)astChild);
+					astToSql((PropertyCallExpression)astChild, context);
 			}
 		if(ast.getName().equals("all") ||
 				ast.getName().equals("allInstances")) {
 			if( ast.getTargetExpression().getResolvedType() instanceof EolModelElementType) {
+				String modelType = context.getModelType(((EolModelElementType)ast.getTargetExpression().getResolvedType()).getName());
+				if(modelType.equals("MySQL")){
 				tablename = ((EolModelElementType)ast.getTargetExpression().getResolvedType()).getTypeName();
+				}
+				else {
+					optimisable = false;
+					
+				}
 				features = "*";
-//				try {
-//					System.out.println(((EolModelElementType)ast.getTargetExpression().getResolvedType()).getModel());
-//				} catch (EolModelElementTypeNotFoundException e) {
-//					// TODO Auto-generated catch block
-//					e.printStackTrace();
-//				}
 				
 			}
 			
@@ -902,6 +916,18 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 			features = ast.getName();
 		}
 		}
+	}
+	public ResultSet runSql(String sql) {
+	int options = ResultSet.TYPE_SCROLL_INSENSITIVE;
+	int resultSetType = this.getResultSetType();
+	try {
+		ResultSet rs= prepareStatement(sql, options, resultSetType, true).executeQuery();
+		return rs;
+	} catch (SQLException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	}
+	return null;
 	}
 
 }
