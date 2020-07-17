@@ -27,18 +27,22 @@ import org.eclipse.epsilon.common.util.StringProperties;
 import org.eclipse.epsilon.eol.compile.m3.MetaClass;
 import org.eclipse.epsilon.eol.EolModule;
 import org.eclipse.epsilon.eol.IEolModule;
-import org.eclipse.epsilon.eol.compile.context.EolCompilationContext;
+import org.eclipse.epsilon.eol.compile.context.IEolCompilationContext;
 import org.eclipse.epsilon.eol.compile.m3.Attribute;
 import org.eclipse.epsilon.eol.compile.m3.Metamodel;
+import org.eclipse.epsilon.eol.compile.m3.Reference;
+import org.eclipse.epsilon.eol.compile.m3.StructuralFeature;
 import org.eclipse.epsilon.eol.dom.CollectionLiteralExpression;
 import org.eclipse.epsilon.eol.dom.Expression;
 import org.eclipse.epsilon.eol.dom.FeatureCallExpression;
 import org.eclipse.epsilon.eol.dom.NameExpression;
 import org.eclipse.epsilon.eol.dom.NotOperatorExpression;
+import org.eclipse.epsilon.eol.dom.Operation;
 import org.eclipse.epsilon.eol.dom.OperationCallExpression;
 import org.eclipse.epsilon.eol.dom.OperatorExpression;
 import org.eclipse.epsilon.eol.dom.PropertyCallExpression;
 import org.eclipse.epsilon.eol.dom.Statement;
+import org.eclipse.epsilon.eol.dom.StatementBlock;
 import org.eclipse.epsilon.eol.dom.StringLiteral;
 import org.eclipse.epsilon.eol.exceptions.EolRuntimeException;
 import org.eclipse.epsilon.eol.exceptions.models.EolEnumerationValueNotFoundException;
@@ -49,9 +53,12 @@ import org.eclipse.epsilon.eol.execute.context.IEolContext;
 import org.eclipse.epsilon.eol.execute.context.Variable;
 import org.eclipse.epsilon.eol.execute.operations.contributors.IOperationContributorProvider;
 import org.eclipse.epsilon.eol.execute.operations.contributors.OperationContributor;
+import org.eclipse.epsilon.eol.models.IModel;
 import org.eclipse.epsilon.eol.models.IRelativePathResolver;
+import org.eclipse.epsilon.eol.models.IRewriter;
 import org.eclipse.epsilon.eol.models.Model;
 import org.eclipse.epsilon.eol.types.EolAnyType;
+import org.eclipse.epsilon.eol.types.EolCollectionType;
 import org.eclipse.epsilon.eol.types.EolMap;
 import org.eclipse.epsilon.eol.types.EolModelElementType;
 import org.eclipse.epsilon.eol.types.EolPrimitiveType;
@@ -62,7 +69,7 @@ import org.eclipse.epsilon.eol.types.EolType;
  * @author Dimitris Kolovos
  *
  */
-public abstract class JdbcModel extends Model implements IOperationContributorProvider {
+public abstract class JdbcModel extends Model implements IOperationContributorProvider, IRewriter {
 
 	public static final String PROPERTY_SERVER = "server";
 	public static final String PROPERTY_PORT = "port";
@@ -88,7 +95,7 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 	
 	/** Wheater this model uses streamed ResultSets */
 	protected boolean streamResults = true;
-	
+	ArrayList<ModuleElement> statements = new ArrayList<ModuleElement>();
 	protected ConnectionPool connectionPool = null;
 	
 	protected StreamedPrimitiveValuesListOperationContributor operationContributor = new StreamedPrimitiveValuesListOperationContributor();
@@ -813,20 +820,34 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 		return EolAnyType.Instance;
 	}
 	
-	public void rewrite(IEolModule module, EolCompilationContext context) {
-		
+	
+	public void rewrite(IEolModule module, IEolCompilationContext context) {
+	
 		List<Statement> statements=module.getMain().getStatements();
 		
 		for(Statement statement: statements) {
 			optimisable = true;
 			List<ModuleElement> asts=statement.getChildren();
+			int index = 0;
+//			while(!asts.isEmpty())
+//				asts.
 			for (ModuleElement ast: asts) {
+//				NameExpression target = new NameExpression(name);
+//				NameExpression operation = new NameExpression("runSql");
+//				StringLiteral p = new StringLiteral(rewriteQuery(ast, context));
+//				
+//				OperationCallExpression runSql = new OperationCallExpression(target, operation,p);
+//				ast.getParent().getChildren().remove(index);
+//				ast.getParent().getChildren().add(index,runSql);
+//				index ++;
+				//OperationCallExpression =new Op
+				//ast.getParent().getChildren().add(index, this.runSql(rewriteQuery(ast, context)));
 				System.out.println(rewriteQuery(ast, context));
 			}
 		}
 	}
 
-	public String rewriteQuery(ModuleElement ast, EolCompilationContext context) {
+	public String rewriteQuery(ModuleElement ast, IEolCompilationContext context) {
 		tablename = "";
 		features = "" ;
 		conditions = "";
@@ -845,6 +866,21 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 			}
 			astToSql((OperationCallExpression)ast, context);
 		}
+		
+		if(ast instanceof PropertyCallExpression ) {
+				if (!(((PropertyCallExpression) ast).getTargetExpression() instanceof NameExpression )) {
+			
+			for (ModuleElement astChild: ast.getChildren()) {
+				if(astChild instanceof OperationCallExpression)
+				astToSql((OperationCallExpression)astChild, context);
+			
+				if(astChild instanceof PropertyCallExpression)
+				astToSql((PropertyCallExpression)astChild, context);
+			}
+		}
+			astToSql((PropertyCallExpression)ast, context);
+		}
+		
 		if(optimisable) {
 			if(tablename.isEmpty())
 				return "Not optimisable";
@@ -866,7 +902,7 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 	
 
 	 
-	public void astToSql(OperationCallExpression ast, EolCompilationContext context) {
+	public void astToSql(OperationCallExpression ast, IEolCompilationContext context) {
 		if(!(ast.getTargetExpression() instanceof NameExpression)
 				||  (ast.getChildren()!= null)) {
 			for (ModuleElement astChild: ast.getChildren()) {
@@ -886,7 +922,7 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 		}
 	}
 	
-	public void astToSql(PropertyCallExpression ast, EolCompilationContext context) {
+	public void astToSql(PropertyCallExpression ast, IEolCompilationContext context) {
 		if(!(ast.getTargetExpression() instanceof NameExpression) || (ast.getChildren()!= null)) {
 			for (ModuleElement astChild: ast.getChildren()) {
 				if(astChild instanceof OperationCallExpression)
@@ -898,9 +934,18 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 		if(ast.getName().equals("all") ||
 				ast.getName().equals("allInstances")) {
 			if( ast.getTargetExpression().getResolvedType() instanceof EolModelElementType) {
-				String modelType = context.getModelType(((EolModelElementType)ast.getTargetExpression().getResolvedType()).getName());
-				if(modelType.equals("MySQL")){
-				tablename = ((EolModelElementType)ast.getTargetExpression().getResolvedType()).getTypeName();
+				//String modelType = context.getModelType(((EolModelElementType)ast.getTargetExpression().getResolvedType()).getName());
+				IModel m = null;
+				try {
+					m= ((EolModelElementType)ast.getTargetExpression().getResolvedType()).getModel(context);	
+				} catch (EolModelElementTypeNotFoundException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+
+				String modelName = ((EolModelElementType)ast.getTargetExpression().getResolvedType()).getModelName();
+				if(m == this){
+					tablename = ((EolModelElementType)ast.getTargetExpression().getResolvedType()).getTypeName();
 				}
 				else {
 					optimisable = false;
@@ -918,16 +963,15 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 		}
 	}
 	public ResultSet runSql(String sql) {
-	int options = ResultSet.TYPE_SCROLL_INSENSITIVE;
-	int resultSetType = this.getResultSetType();
-	try {
-		ResultSet rs= prepareStatement(sql, options, resultSetType, true).executeQuery();
-		return rs;
-	} catch (SQLException e) {
-		// TODO Auto-generated catch block
-		e.printStackTrace();
-	}
-	return null;
+		int options = ResultSet.TYPE_SCROLL_INSENSITIVE;
+		int resultSetType = this.getResultSetType();
+		try {
+			ResultSet rs= prepareStatement(sql, options, resultSetType, true).executeQuery();
+			return rs;
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return null;
 	}
 
 }

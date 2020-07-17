@@ -53,9 +53,6 @@ public class MySqlModel extends JdbcModel {
 		return super.getMetamodel(properties, resolver);
 	}
 	
-	@Override
-	public String rewriteQuery(ModuleElement ast) {
-		return super.rewriteQuery(ast);
-	}
+	
 
 }
