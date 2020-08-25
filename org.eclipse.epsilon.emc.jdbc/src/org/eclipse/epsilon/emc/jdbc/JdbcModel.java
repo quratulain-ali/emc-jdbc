@@ -824,28 +824,63 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 	public void rewrite(IEolModule module, IEolCompilationContext context) {
 	
 		List<Statement> statements=module.getMain().getStatements();
-		
-		for(Statement statement: statements) {
-			optimisable = true;
-			List<ModuleElement> asts=statement.getChildren();
-			int index = 0;
-//			while(!asts.isEmpty())
-//				asts.
-			for (ModuleElement ast: asts) {
-//				NameExpression target = new NameExpression(name);
-//				NameExpression operation = new NameExpression("runSql");
-//				StringLiteral p = new StringLiteral(rewriteQuery(ast, context));
-//				
-//				OperationCallExpression runSql = new OperationCallExpression(target, operation,p);
-//				ast.getParent().getChildren().remove(index);
-//				ast.getParent().getChildren().add(index,runSql);
-//				index ++;
-				//OperationCallExpression =new Op
-				//ast.getParent().getChildren().add(index, this.runSql(rewriteQuery(ast, context)));
-				System.out.println(rewriteQuery(ast, context));
-			}
-		}
+		eolVisitor(statements, context);
 	}
+	 public void eolVisitor(List<Statement> statements, IEolCompilationContext context) {
+		 
+		 for(Statement statement: statements) {
+				optimisable = true;
+				
+				List<ModuleElement> asts=statement.getChildren();
+				int index = 0;
+				for (ModuleElement ast: asts) {
+					if(ast instanceof StatementBlock) {
+						eolVisitor(((StatementBlock)ast).getStatements(), context);
+					}
+					if(ast instanceof Statement) {
+						for (ModuleElement childAst: ast.getChildren()) {
+							System.out.println(rewriteQuery(childAst, context));
+							//tr
+							replaceAst(childAst, rewriteQuery(childAst, context), index);
+//							NameExpression target = new NameExpression(name);
+//							NameExpression operation = new NameExpression("runSql");
+//							StringLiteral p = new StringLiteral(rewriteQuery(childAst, context));
+//							
+//							OperationCallExpression runSql = new OperationCallExpression(target, operation,p);
+//							childAst.getParent().getChildren().remove(index);
+//							childAst.getParent().getChildren().add(index,runSql);
+						}
+					}
+					else {
+//						NameExpression target = new NameExpression(name);
+//						NameExpression operation = new NameExpression("runSql");
+//						StringLiteral p = new StringLiteral(rewriteQuery(ast, context));
+//						
+//						OperationCallExpression runSql = new OperationCallExpression(target, operation,p);
+//						ast.getParent().getChildren().remove(index);
+//						ast.getParent().getChildren().add(index,runSql);
+					
+					//OperationCallExpression =new Op
+					//ast.getParent().getChildren().add(index, this.runSql(rewriteQuery(ast, context)));
+						String translated = rewriteQuery(ast, context);
+						System.out.println(translated);
+//						if(!(translated.equals("Not optimisable")))
+//					    replaceAst(ast, translated, index);
+					}
+					index ++;
+				}
+			}
+	 }
+	 
+	 public void replaceAst(ModuleElement ast, String translatedQuery, Integer index) {
+		    NameExpression target = new NameExpression(name);
+			NameExpression operation = new NameExpression("runSql");
+			StringLiteral p = new StringLiteral(translatedQuery);
+			
+			OperationCallExpression runSql = new OperationCallExpression(target, operation,p);
+			ast.getParent().getChildren().remove(index);
+			ast.getParent().getChildren().add(index,runSql);
+	 }
 
 	public String rewriteQuery(ModuleElement ast, IEolCompilationContext context) {
 		tablename = "";
