@@ -16,10 +16,10 @@ public class MySqlModel extends JdbcModel {
 
 	public static void main(String[] args) throws Exception {
 		MySqlModel model = new MySqlModel();
-		model.setServer("localhost");
-		model.setDatabase("employees");
-		model.setUsername("root");
-		model.setPassword("compassyork");
+		model.setServer("useastdb.ensembl.org");
+		model.setDatabase("test");
+		model.setUsername("anonymous");
+		model.setPassword("");
 		model.setPort(3306);
 		model.setName("M");
 		model.load();

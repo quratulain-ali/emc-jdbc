@@ -1,0 +1,17 @@
+model Model driver MySQL {
+server = "sql2.freemysqlhosting.net",
+port = "3306",
+database = "sql2366312",
+username = "sql2366312",
+password = "eV7*cS8*",
+name= "Model"
+};
+
+	Model!Flight.allInstances.println();
+	Model!Flight.allInstances.Departure.println();
+Model!Flight.allInstances.Arrival.println();
+Model!Flight.allInstances.Duration.println();
+Model!Flight.allInstances.Name.println();
+Model!Flight.allInstances.first().println();
+Model!Flight.allInstances.size().println();
+Model!Flight.allInstances.Departure.asSet().println();
