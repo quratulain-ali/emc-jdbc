@@ -43,6 +43,13 @@ public class Result implements IModelElement {
 		cacheValues();
 	}
 	
+	public Result(Map<String, Object> cache, JdbcModel model, Table table, boolean streamed) {
+		this.model = model;
+		this.table = table;
+		this.streamed = streamed;
+		this.cache = cache;
+	}
+	
 	protected void cacheValues() {
 		
 		if (!streamed) return;

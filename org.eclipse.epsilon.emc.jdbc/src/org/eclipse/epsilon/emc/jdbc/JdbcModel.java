@@ -14,6 +14,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.Driver;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -57,6 +58,7 @@ import org.eclipse.epsilon.eol.models.IRelativePathResolver;
 import org.eclipse.epsilon.eol.models.IRewriter;
 import org.eclipse.epsilon.eol.models.Model;
 import org.eclipse.epsilon.eol.types.EolAnyType;
+import org.eclipse.epsilon.eol.types.EolCollectionType;
 import org.eclipse.epsilon.eol.types.EolMap;
 import org.eclipse.epsilon.eol.types.EolModelElementType;
 import org.eclipse.epsilon.eol.types.EolPrimitiveType;
@@ -986,14 +988,52 @@ public abstract class JdbcModel extends Model implements IOperationContributorPr
 		int resultSetType = this.getResultSetType();
 		try {
 			ResultSet rs = prepareStatement(sql, options, resultSetType, true).executeQuery();
-			System.err.println("*** Result Set ****");
-		print(rs);
-			System.err.println("*******************");
-			return rs;
+			Table t = new Table(extractTableNamefromSqlQuery(sql), database);
+			//print(rs);
+			return convertResultSet(rs, t);
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
 		return null;
+	}
+	
+	public String extractTableNamefromSqlQuery(String sql) {
+		int startIndex = sql.indexOf("FROM ")+5;
+		int endIndex = sql.indexOf(" ", startIndex);
+		if (endIndex == -1) {
+		    endIndex = sql.length();
+		}
+		return sql.substring(startIndex, endIndex);
+	}
+	
+	public Object convertResultSet(ResultSet rs, Table t) throws SQLException {
+		List<Object> result = new ArrayList<Object>();
+		
+		int rowCount = 0;
+		ResultSetMetaData metadata = rs.getMetaData();
+		int columnCount = metadata.getColumnCount();
+		
+		while (rs.next()) {
+			rowCount++;
+			if (columnCount > 1) {
+				StringBuilder rowData = new StringBuilder();
+				Map<String, Object> columnData = new HashMap<>();
+				 rowData.append("{");
+				for (int i = 1; i <= columnCount; i++) {
+					if (rowData.length()>1) rowData.append(",");
+					 // rowData.append(rs.getObject(i));
+					  columnData.put(metadata.getColumnName(i), rs.getObject(i)) ;
+				}
+				rowData.append("}");
+				
+				result.add(new Result(columnData, this, t, true));
+			} else
+				result.add(rs.getObject(1));
+		}
+		if(rowCount == 1)
+			return result.get(0);
+		else
+			return result;
 	}
 
 }
